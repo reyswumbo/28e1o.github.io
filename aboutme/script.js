@@ -1,9 +1,9 @@
 const starsEl = document.getElementById('stars');
-const N = 140;
+const N = 160;
 for(let i=0;i<N;i++){
   const s = document.createElement('div');
   s.className = 'star';
-  const size = Math.random()*2 + 0.6;
+  const size = Math.random()*2.6 + 1;
   s.style.width = size+'px';
   s.style.height = size+'px';
   s.style.top = Math.random()*100+'vh';
@@ -12,6 +12,9 @@ for(let i=0;i<N;i++){
   s.style.animationDelay = (Math.random()*5)+'s, '+(Math.random()*6)+'s';
   s.style.setProperty('--fx', (Math.random()*16 - 8)+'px');
   s.style.setProperty('--fy', (Math.random()*16 - 8)+'px');
+  if(Math.random() < 0.3){
+    s.style.boxShadow = '0 0 8px 2px rgba(244,236,216,0.35)';
+  }
   starsEl.appendChild(s);
 }
 
