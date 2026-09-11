@@ -1,5 +1,5 @@
 const starsEl = document.getElementById('stars');
-const N = 160;
+const N = 99;
 for(let i=0;i<N;i++){
   const s = document.createElement('div');
   s.className = 'star';
