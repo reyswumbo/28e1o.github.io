@@ -18,6 +18,34 @@ for(let i=0;i<N;i++){
   starsEl.appendChild(s);
 }
 
+const alertBox = document.getElementById('alert');
+const alertBackdrop = document.getElementById('alertBackdrop');
+const alertOk = document.getElementById('alertOk');
+if(alertBox && alertBackdrop && alertOk){
+  document.body.classList.add('no-scroll');
+  const closeAlert = ()=>{
+    alertBox.classList.add('hide');
+    alertBackdrop.classList.add('hide');
+    document.body.classList.remove('no-scroll');
+  };
+  alertOk.addEventListener('click', closeAlert);
+}
+
+const lightbox = document.getElementById('lightbox');
+const lightboxClose = document.getElementById('lightboxClose');
+const avatar = document.getElementById('avatar');
+if(lightbox && lightboxClose && avatar){
+  avatar.addEventListener('click', ()=>{
+    lightbox.classList.add('open');
+    document.body.classList.add('no-scroll');
+  });
+  const closeLightbox = ()=>{
+    lightbox.classList.remove('open');
+    document.body.classList.remove('no-scroll');
+  };
+  lightboxClose.addEventListener('click', closeLightbox);
+}
+
 const targets = document.querySelectorAll('.letter p, .divider');
 const io = new IntersectionObserver((entries)=>{
   entries.forEach(e=>{
