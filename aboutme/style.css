@@ -169,7 +169,8 @@ body.no-scroll{ overflow:hidden; }
   height: 38px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid var(--line);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.35);
   flex-shrink: 0;
   cursor: pointer;
 }
