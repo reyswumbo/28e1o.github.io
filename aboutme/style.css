@@ -179,7 +179,7 @@ body.no-scroll{ overflow:hidden; }
   line-height:1.3;
 }
 .profile-bar .identity .path{
-  font-size: 0.7rem;
+  font-size: 0.95rem;
   letter-spacing: 0.03em;
   color: var(--star-dim);
 }
