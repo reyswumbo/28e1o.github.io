@@ -249,7 +249,7 @@ body.no-scroll{ overflow:hidden; }
 .player{
   position:relative;
   z-index:2;
-  max-width: 620px;
+  width:100%;
   margin: 18px auto 0;
   padding: 0 24px;
 }
