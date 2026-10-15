@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiFi Noise Generator</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --green: #238636;
+    --red: #da3633;
+    --blue: #1f6feb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 20px;
+  }
+  h1 { font-size: 22px; font-weight: 700; }
+  h1 small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--panel);
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .dot.running { background: #3fb950; box-shadow: 0 0 8px #3fb950; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin-bottom: 20px;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  input[type=number], input[type=range] { width: 100%; }
+  input[type=number] {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 10px; border-radius: 8px; font-size: 14px;
+  }
+  .range-row { display: flex; align-items: center; gap: 12px; }
+  .range-row input[type=range] { flex: 1; accent-color: var(--blue); }
+  .range-val { min-width: 48px; text-align: right; font-size: 14px; font-weight: 600; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+  .toggle-row span { font-size: 14px; }
+  .switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; inset: 0; background: #30363d; border-radius: 999px; transition: .2s; cursor: pointer; }
+  .slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+  .switch input:checked + .slider { background: var(--blue); }
+  .switch input:checked + .slider::before { transform: translateX(20px); }
+
+  .chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .chips label {
+    display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 8px 12px;
+    border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 13px;
+    background: var(--bg); color: var(--text);
+  }
+  .chips input { accent-color: var(--blue); }
+
+  .btn {
+    width: 100%; padding: 16px; border: none; border-radius: 12px;
+    font-size: 17px; font-weight: 700; cursor: pointer; transition: .15s; color: #fff;
+  }
+  .btn.start { background: var(--green); }
+  .btn.start:hover { background: #2ea043; }
+  .btn.stop { background: var(--red); }
+  .btn.stop:hover { background: #f85149; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); font-weight: 600; padding: 12px; }
+  .btn.ghost:hover { background: var(--bg); }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 600px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; text-align: center; }
+  .stat .num { font-size: 26px; font-weight: 800; }
+  .stat .lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .chart-head h2 { font-size: 15px; }
+  .chart-head .peak { font-size: 12px; color: var(--muted); }
+  .chart-box {
+    background: #010409; border: 1px solid var(--border); border-radius: 8px;
+    height: 180px; position: relative; overflow: hidden;
+  }
+  #chart { width: 100%; height: 100%; display: block; }
+  .chart-mid {
+    position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+    background: #21262d; pointer-events: none;
+  }
+
+  .log-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .log-head h2 { font-size: 15px; }
+  .log-box {
+    background: #010409; border: 1px solid var(--border); border-radius: 8px;
+    height: 320px; overflow-y: auto; padding: 12px; font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+  }
+  .log-line { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid #0d1117; }
+  .log-line .t { color: var(--muted); flex-shrink: 0; }
+  .log-line .st { flex-shrink: 0; font-weight: 700; width: 54px; text-align: center; }
+  .st.ok { color: #3fb950; } .st.fail { color: #f85149; } .st.ti { color: #d29922; }
+  .log-line .u { color: #79c0ff; word-break: break-all; }
+  .log-line .d { color: var(--muted); flex-shrink: 0; margin-left: auto; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>WiFi Noise Generator<small>Banjiri traffic dengan request web acak</small></h1>
+    <div class="status-badge"><span class="dot" id="dot"></span><span id="statusText">Berhenti</span></div>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="num" id="statSent">0</div><div class="lbl">Request terkirim</div></div>
+    <div class="stat"><div class="num" id="statFail">0</div><div class="lbl">Gagal</div></div>
+    <div class="stat"><div class="num" id="statRate">0</div><div class="lbl">Rata-rata / mnt</div></div>
+    <div class="stat"><div class="num" id="statTime">0:00</div><div class="lbl">Durasi</div></div>
+  </div>
+
+  <div class="card">
+    <div class="chart-head">
+      <h2>📈 Grafik Traffic (request per detik — 2 menit terakhir)</h2>
+      <span class="peak" id="chartPeak">puncak: 0/dtk</span>
+    </div>
+    <div class="chart-box"><div class="chart-mid"></div><canvas id="chart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label>Jeda antar request (delay)</label>
+        <div class="range-row">
+          <input type="range" id="delayRange" min="0.1" max="15" step="0.1" value="2">
+          <span class="range-val" id="delayVal">2.0s</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:2px;">
+          <span>0.1s (sangat padat)</span><span>15s (pelan)</span>
+        </div>
+        <div class="toggle-row">
+          <span>Acak jeda (60%–140% dari delay)</span>
+          <label class="switch"><input type="checkbox" id="randomDelay" checked><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <span>Domain acak (nama dibuat random, mis. ajewo.com)</span>
+          <label class="switch"><input type="checkbox" id="randomDomain"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div>
+        <label>Metode pengiriman (disarankan: semua)</label>
+        <div class="chips">
+          <label><input type="checkbox" id="mFetch" checked> fetch no-cors</label>
+          <label><input type="checkbox" id="mImage" checked> Image tag</label>
+          <label><input type="checkbox" id="mScript" checked> Script tag</label>
+        </div>
+        <div class="toggle-row">
+          <span>Mode intensif (beberapa request per jeda)</span>
+          <label class="switch"><input type="checkbox" id="burst" checked><span class="slider"></span></label>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn start" id="btnStart">▶ &nbsp;START</button>
+      <button class="btn stop" id="btnStop" disabled>■ &nbsp;STOP</button>
+    </div>
+    <p class="hint">Request dikirim langsung dari browser melalui koneksi WiFi kamu. Jaga tab ini tetap terbuka selama berjalan. <b>Domain acak</b> membuat nama domain sendiri (mis. <i>ajewo.com</i>, <i>apdpa.my.id</i>) — mayoritas akan gagal DNS, tapi query DNS-nya tetap tercatat padat di log router. Centang ini untuk benar-benar acak, kosongkan untuk situs populer yang benar-benar bisa dibuka.</p>
+  </div>
+
+  <div class="card">
+    <div class="log-head">
+      <h2>📋 Monitor Log</h2>
+      <div style="display:flex;gap:8px;">
+        <button class="btn ghost" id="btnClear" style="padding:6px 14px;">Bersihkan</button>
+        <button class="btn ghost" id="btnExport" style="padding:6px 14px;">Ekspor .txt</button>
+      </div>
+    </div>
+    <div class="log-box" id="logBox"></div>
+    <p class="hint">Klik <b>Ekspor .txt</b> untuk menyimpan log sebagai file (pengganti folder monitor).</p>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const logBox = $('logBox');
+
+const state = {
+  running: false,
+  delaySec: 2.0,
+  randomDelay: true,
+  randomDomain: false,
+  methods: { fetch: true, image: true, script: true },
+  burst: true,
+  sent: 0, fail: 0,
+  startTime: null,
+  timers: [],
+  rateWindow: []
+};
+
+const SITES = [
+  'example.com','wikipedia.org','reddit.com','github.com','stackoverflow.com','medium.com',
+  'cnn.com','bbc.com','nytimes.com','theguardian.com','techcrunch.com','wired.com','mozilla.org',
+  'python.org','openai.com','quora.com','wikihow.com','lifehacker.com','howtogeek.com','dev.to',
+  'digitalocean.com','cloudflare.com','nginx.org','apache.org','google.com','bing.com','yahoo.com',
+  'duckduckgo.com','youtube.com','vimeo.com','dailymotion.com','soundcloud.com','spotify.com',
+  'archive.org','gutenberg.org','khanacademy.org','coursera.org','udemy.com','codecademy.com',
+  'freecodecamp.org','w3schools.com','developer.mozilla.org','npmjs.com','pypi.org','nodejs.org',
+  'laravel.com','vuejs.org','reactjs.org','angular.io','apple.com','microsoft.com','netflix.com',
+  'imdb.com','wordpress.com','blogger.com','tumblr.com','pinterest.com','linkedin.com','whatsapp.com',
+  'telegram.org','discord.com','twitch.tv','amazon.com','ebay.com','alibaba.com','flipkart.com'
+];
+
+const WORDS = ['article','blog','news','about','contact','privacy','search','forum','wiki','help','api',
+  'docs','download','login','terms','products','services','faq','guide','tutorial','review','best','top',
+  'category','tags','profile','settings','archive','page','index','home','post','feed','community',
+  'events','careers','support','status','explore','discover','featured','recent','popular','login',
+  'register','cart','shop','store','offers','deals','2023','2024','2025','update','changelog','newsletter'];
+
+const rand = (a) => a[Math.floor(Math.random() * a.length)];
+const randInt = (m, x) => Math.floor(Math.random() * (x - m + 1)) + m;
+
+const VOWELS = 'aeiou';
+const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
+const TLDs = ['com','net','org','io','co','id','my.id','xyz','info','biz','online','site','web','tech','dev','me','cc','tv','store','blog'];
+
+function randLetters(len) {
+  let s = '';
+  for (let i = 0; i < len; i++) s += 'abcdefghijklmnopqrstuvwxyz'[randInt(0, 25)];
+  return s;
+}
+
+function randPronounceable() {
+  const len = randInt(3, 5);
+  let s = '';
+  for (let i = 0; i < len; i++) {
+    s += (i % 2 === 0) ? CONSONANTS[randInt(0, CONSONANTS.length - 1)]
+                      : VOWELS[randInt(0, VOWELS.length - 1)];
+  }
+  return s;
+}
+
+function randDomain() {
+  const name = Math.random() < 0.5 ? randLetters(randInt(4, 7)) : randPronounceable();
+  return name + '.' + rand(TLDs);
+}
+
+function randomPath() {
+  const n = randInt(1, 4), p = [];
+  for (let i = 0; i < n; i++) p.push(rand(WORDS));
+  return '/' + p.join('/');
+}
+
+function randomUrl() {
+  const host = state.randomDomain ? randDomain() : rand(SITES);
+  return 'https://' + host + randomPath();
+}
+
+function addLog(kind, url, extra) {
+  const now = new Date().toTimeString().slice(0, 8);
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  let st = '', stClass = '';
+  if (kind === 'ok') { st = 'OK'; stClass = 'st ok'; }
+  else if (kind === 'fail') { st = 'GAGAL'; stClass = 'st fail'; }
+  else { st = 'KIRIM'; stClass = 'st ti'; }
+  line.innerHTML = `<span class="t">${now}</span><span class="${stClass}">${st}</span><span class="u">${url}</span><span class="d">${extra || ''}</span>`;
+  logBox.appendChild(line);
+  if (logBox.children.length > 1000) logBox.removeChild(logBox.firstChild);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+function fireMethod(method, url) {
+  if (method === 'fetch') {
+    fetch(url, { mode: 'no-cors', credentials: 'omit', cache: 'no-store' })
+      .catch(() => {});
+  } else if (method === 'image') {
+    const img = new Image();
+    img.referrerPolicy = 'no-referrer';
+    img.src = url;
+  } else if (method === 'script') {
+    const s = document.createElement('script');
+    s.src = url;
+    s.async = true;
+    s.onerror = () => {};
+    (document.head || document.documentElement).appendChild(s);
+    setTimeout(() => { try { s.remove(); } catch(e) {} }, 10000);
+  }
+}
+
+function sendOne(url) {
+  const active = [];
+  if (state.methods.fetch) active.push('fetch');
+  if (state.methods.image) active.push('image');
+  if (state.methods.script) active.push('script');
+  if (!active.length) return;
+
+  const m = rand(active);
+  fireMethod(m, url);
+  state.sent++;
+  state.rateWindow.push(Date.now());
+  chartBump();
+  addLog('ok', `[${m}] ${url}`, '');
+  updateStats();
+}
+
+function nextTick() {
+  if (!state.running) return;
+  const url = randomUrl();
+  if (state.burst) {
+    const n = randInt(2, 4);
+    for (let i = 0; i < n; i++) {
+      setTimeout(() => sendOne(randomUrl()), i * randInt(60, 180));
+    }
+  } else {
+    sendOne(url);
+  }
+  const base = state.delaySec * 1000;
+  const d = state.randomDelay ? Math.round(base * randInt(60, 140) / 100) : base;
+  state.timers.push(setTimeout(nextTick, Math.max(100, d)));
+  if (state.timers.length > 50) { clearTimeout(state.timers.shift()); }
+}
+
+function updateStats() {
+  $('statSent').textContent = state.sent;
+  $('statFail').textContent = state.fail;
+  const now = Date.now();
+  state.rateWindow = state.rateWindow.filter(t => now - t < 60000);
+  $('statRate').textContent = state.rateWindow.length;
+  if (state.startTime) {
+    const s = Math.floor((now - state.startTime) / 1000);
+    const mm = String(Math.floor(s / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    $('statTime').textContent = `${mm}:${ss}`;
+  }
+}
+
+const BUCKET_MS = 1000;
+const KEEP_BUCKETS = 120;
+const chart = { buckets: [], peak: 0 };
+
+function chartBump() {
+  const now = Date.now();
+  if (!chart.buckets.length) chart.buckets.push({ t: now, c: 0 });
+  let last = chart.buckets[chart.buckets.length - 1];
+  while (now - last.t >= BUCKET_MS) {
+    chart.buckets.push({ t: last.t + BUCKET_MS, c: 0 });
+    last = chart.buckets[chart.buckets.length - 1];
+  }
+  last.c++;
+  if (last.c > chart.peak) chart.peak = last.c;
+  const cutoff = now - KEEP_BUCKETS * BUCKET_MS;
+  while (chart.buckets.length && chart.buckets[0].t < cutoff) chart.buckets.shift();
+}
+
+function drawChart() {
+  const canvas = $('chart');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth * dpr;
+  const h = canvas.clientHeight * dpr;
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+
+  const n = chart.buckets.length;
+  $('chartPeak').textContent = 'puncak: ' + chart.peak + '/dtk';
+
+  if (!n) return;
+  const max = Math.max(chart.peak, 1);
+  const pad = 2 * dpr;
+  const bw = w / KEEP_BUCKETS;
+  const cw = Math.max(1, bw - pad);
+
+  for (let i = 0; i < n; i++) {
+    const v = chart.buckets[i].c;
+    if (!v) continue;
+    const bh = Math.max(2 * dpr, (v / max) * (h - 8 * dpr));
+    const x = w - (n - i) * bw;
+    const y = h - bh;
+    ctx.fillStyle = state.running ? '#3fb950' : '#8b949e';
+    ctx.fillRect(x, y, cw, bh);
+  }
+
+  ctx.fillStyle = 'rgba(139,148,158,0.5)';
+  ctx.font = (10 * dpr) + 'px sans-serif';
+  ctx.fillText(max + '/dtk', 4 * dpr, 12 * dpr);
+}
+
+function start() {
+  state.delaySec = parseFloat($('delayRange').value);
+  state.randomDelay = $('randomDelay').checked;
+  state.randomDomain = $('randomDomain').checked;
+  state.burst = $('burst').checked;
+  state.methods = {
+    fetch: $('mFetch').checked,
+    image: $('mImage').checked,
+    script: $('mScript').checked
+  };
+  if (!state.methods.fetch && !state.methods.image && !state.methods.script) {
+    alert('Pilih minimal satu metode pengiriman.');
+    return;
+  }
+  state.running = true;
+  state.startTime = Date.now();
+  $('btnStart').disabled = true;
+  $('btnStop').disabled = false;
+  $('dot').classList.add('running');
+  $('statusText').textContent = 'Berjalan';
+  addLog('send', 'Worker dimulai. Delay=' + state.delaySec + 's, Burst=' + (state.burst ? 'ON' : 'OFF'));
+  nextTick();
+}
+
+function stop() {
+  state.running = false;
+  while (state.timers.length) clearTimeout(state.timers.pop());
+  $('btnStart').disabled = false;
+  $('btnStop').disabled = true;
+  $('dot').classList.remove('running');
+  $('statusText').textContent = 'Berhenti';
+  addLog('send', 'Worker dihentikan.');
+}
+
+$('btnStart').addEventListener('click', start);
+$('btnStop').addEventListener('click', stop);
+
+$('delayRange').addEventListener('input', (e) => {
+  $('delayVal').textContent = parseFloat(e.target.value).toFixed(1) + 's';
+});
+
+$('btnClear').addEventListener('click', () => { logBox.innerHTML = ''; });
+
+$('btnExport').addEventListener('click', () => {
+  const lines = Array.from(logBox.querySelectorAll('.log-line')).map(l => l.innerText);
+  const header = `WiFi Noise Log — ${new Date().toLocaleString()} — Total request: ${state.sent} (gagal ${state.fail})\n`;
+  const blob = new Blob([header + lines.join('\n')], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `wifi-noise-log-${Date.now()}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+setInterval(() => { updateStats(); drawChart(); }, 1000);
+addLog('send', 'Siap. Klik START untuk memulai banjir request.');
+</script>
+</body>
+</html>
