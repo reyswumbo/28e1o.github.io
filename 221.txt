@@ -1,0 +1,356 @@
+========================================================================
+ TUTOR DOWNLOAD VIDEO MANUAL DI TERMINAL
+ (Weibo biasa, Weibo yang di-host Tencent, dan Bilibili)
+ Dibuat untuk VPS ini. Versi: 2026-10-14
+========================================================================
+
+------------------------------------------------------------------------
+0. RINGKASAN CEPAT (kalau buru-buru)
+------------------------------------------------------------------------
+Bikin alias dulu biar gampang:
+
+    alias ytdlp='/usr/local/bin/python3.11 /usr/local/bin/yt-dlp'
+
+1) Bilibili:
+   ytdlp -f "bv*+ba/b" --merge-output-format mp4 -o "%(title)s.%(ext)s" \
+       "https://www.bilibili.com/video/BV1F5pY6pEQ6"
+
+2) Weibo biasa:
+   ytdlp "https://m.weibo.cn/detail/5012345678901234"
+
+3) Weibo yang di-host Tencent (yt-dlp GAGAL, harus lewat v.qq.com):
+   - Ambil "vid" dari JSON status (lihat Bab 5).
+   - ytdlp "https://v.qq.com/x/page/<VID>.html"
+
+Kalau muncul error HTTP 412 (Bilibili) atau halaman "Sina Visitor
+System" (Weibo), artinya IP VPS ini diblokir -> pakai cookies atau
+jalankan dari jaringan lain (lihat Bab 7).
+
+------------------------------------------------------------------------
+1. PRASYARAT & PATH PENTING DI VPS INI
+------------------------------------------------------------------------
+- Python   : /usr/local/bin/python3.11
+- yt-dlp   : /usr/local/bin/yt-dlp   (file zipapp, TANPA ekstensi)
+- ffmpeg   : /usr/bin/ffmpeg          (untuk merge video+audio)
+- curl     : /usr/bin/curl
+- curl_cffi (python): sudah ada (0.16.3) -> dipakai untuk request
+  yang butuh menyerupai browser asli.
+
+PENTING - kenapa yt-dlp harus dipanggil pakai python3.11?
+
+  Kalau dipanggil langsung:
+      /usr/local/bin/yt-dlp --version
+  => Error:
+      ImportError: You are using an unsupported version of Python.
+      Only Python versions 3.10 and above are supported by yt-dlp
+
+  Karena shebang file itu nunjuk ke python3 versi lama.
+  Jadi SELALU jalankan begitu:
+
+      /usr/local/bin/python3.11 /usr/local/bin/yt-dlp ...
+
+  Biar ringkas, bikin alias:
+      alias ytdlp='/usr/local/bin/python3.11 /usr/local/bin/yt-dlp'
+  (taruh di ~/.bashrc kalau mau permanen: echo "alias ytdlp='/usr/local/bin/python3.11 /usr/local/bin/yt-dlp'" >> ~/.bashrc)
+
+------------------------------------------------------------------------
+2. PERINTAH DASAR yt-dlp (yang sering dipakai)
+------------------------------------------------------------------------
+- Cek daftar format/kualitas (tidak mengunduh):
+      ytdlp -F "<URL>"
+
+- Unduh kualitas terbaik + gabung jadi 1 mp4:
+      ytdlp -f "bv*+ba/b" --merge-output-format mp4 "<URL>"
+
+- Pilih resolusi tertentu (contoh 720p):
+      ytdlp -f "bv*[height<=720]+ba/b[height<=720]" --merge-output-format mp4 "<URL>"
+
+- Tentukan nama file pakai judul:
+      ytdlp -o "%(title)s [%(id)s].%(ext)s" "<URL>"
+
+- Pakai cookies (kalau butuh login / kena blokir):
+      ytdlp --cookies cookies.txt "<URL>"
+
+- Unduh pakai metadata + thumbnail:
+      ytdlp --write-thumbnail --write-info-json "<URL>"
+
+Arti singkatan format:
+  bv* = video terbaik, ba = audio terbaik, b = format gabungan (muxed)
+  Tanda "+" = digabung pakai ffmpeg, "/" = alternatif/cadangan.
+
+------------------------------------------------------------------------
+3. BILIBILI
+------------------------------------------------------------------------
+Jenis URL yang didukung yt-dlp:
+  - Video biasa : https://www.bilibili.com/video/BV1F5pY6pEQ6
+  - Bangumi/EP  : https://www.bilibili.com/bangumi/play/ep5003270
+  - Season (SS) : https://www.bilibili.com/bangumi/play/ss<angka>
+  - Channel/UP  : https://space.bilibili.com/<UID>/video
+  - Koleksi     : https://space.bilibili.com/<UID>/lists/<SID>
+  - Dynamic     : https://t.bilibili.com/<ID>
+
+a) Unduh 1 video (kualitas terbaik, gabung mp4):
+
+      ytdlp -f "bv*+ba/b" --merge-output-format mp4 \
+          -o "%(title)s [%(id)s].%(ext)s" \
+          "https://www.bilibili.com/video/BV1F5pY6pEQ6"
+
+b) Lihat format yang tersedia dulu:
+
+      ytdlp -F "https://www.bilibili.com/video/BV1F5pY6pEQ6"
+
+c) Unduh seluruh video terbaru dari sebuah channel (space):
+   Channel "ARMJI / A Record of Mortal's Journey" (UID 557818222):
+
+      # lihat daftar dulu (tanpa unduh):
+      ytdlp --flat-playlist --print "%(id)s  %(title)s" \
+          "https://space.bilibili.com/557818222/video"
+
+      # unduh semua:
+      ytdlp -f "bv*+ba/b" --merge-output-format mp4 \
+          -o "%(title)s [%(id)s].%(ext)s" \
+          "https://space.bilibili.com/557818222/video"
+
+      # batasi 10 video terbaru saja:
+      ytdlp --playlist-end 10 "https://space.bilibili.com/557818222/video"
+
+d) Butuh kualitas tinggi (1080p+, kadang perlu login) -> pakai cookies:
+      ytdlp --cookies cookies-bili.txt -f "bv*+ba/b" --merge-output-format mp4 "<URL>"
+
+CATATAN: Dari IP VPS ini sering muncul:
+      ERROR: [BiliBili] ...: HTTP Error 412: Precondition Failed
+  Itu blokir IP (risk control), BUKAN salah perintah. Solusi: pakai
+  cookies, atau jalankan dari IP/jaringan lain (HP, PC, server lain).
+
+------------------------------------------------------------------------
+4. WEIBO BIASA (stream ada di weibo/video.weibo)
+------------------------------------------------------------------------
+Jenis URL yang didukung yt-dlp:
+  - Halaman status : https://m.weibo.cn/detail/<MID>
+  - Halaman status : https://m.weibo.cn/status/<MID>
+  - Profil user    : https://weibo.com/u/<UID>
+  - Video weibo    : https://video.weibo.com/show?fid=...
+  - Video tv       : https://weibo.com/tv/show/<VIDEO_ID>
+
+a) Unduh 1 video weibo:
+
+      ytdlp -f "bv*+ba/b" --merge-output-format mp4 \
+          -o "%(title)s [%(id)s].%(ext)s" \
+          "https://m.weibo.cn/detail/5012345678901234"
+
+b) Kalau muncul halaman "Sina Visitor System" / butuh login,
+   WAJIB pakai cookies dari browser (lihat Bab 6):
+
+      ytdlp --cookies cookies-weibo.txt \
+          -o "%(title)s [%(id)s].%(ext)s" \
+          "https://m.weibo.cn/detail/5012345678901234"
+
+c) Unduh semua video dari 1 akun (feed user):
+
+      ytdlp --cookies cookies-weibo.txt \
+          -f "bv*+ba/b" --merge-output-format mp4 \
+          "https://weibo.com/u/7420472445"
+
+d) Cuma mau tahu videonya ada di mana / URL langsungnya:
+      ytdlp -g "https://m.weibo.cn/detail/<MID>"
+
+Konversi MID <-> UID/BID (kalau punya link weibo.com/<uid>/<bid>):
+  yt-dlp juga bisa langsung terima URL weibo.com/<uid>/<bid> itu.
+
+------------------------------------------------------------------------
+5. WEIBO YANG DI-HOST TENCENT (v.qq.com)  <-- KASUS KHUSUS
+------------------------------------------------------------------------
+Gejala: url weibo ini normal, tapi yt-dlp gagal dengan pesan:
+
+      ERROR: [Weibo] ...: There is no video for this status
+      atau "No video formats found!"
+
+Sebab: videonya bukan disimpan di server Weibo, tapi di TENcent Video
+(v.qq.com). Weibo hanya menyimpan link pengalih berbentuk:
+
+      ...redirect_tencent_video.json?vid=XXXXXXXXXXXXXXXX
+
+Jadi kita harus:
+  (1) ambil "vid" dari data status weibo,
+  (2) download dari v.qq.com/x/page/<VID>.html (didukung yt-dlp
+      lewat extractor "vqq:video").
+
+--- 5A. Ambil "vid" dari JSON status weibo (paling gampang) ----------
+Ganti <MID> dengan id status, dan <COOKIE> dengan cookie browser-mu
+(lihat Bab 6 cara ambilnya):
+
+      curl -s "https://weibo.com/ajax/statuses/show?id=<MID>" \
+        -H "user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0" \
+        -H "cookie: <COOKIE>" \
+      | /usr/local/bin/python3.11 -c "import sys,json,re;\
+d=json.load(sys.stdin);\
+mi=(d.get('page_info') or {}).get('media_info') or {};\
+u=mi.get('stream_url') or mi.get('h5_url') or mi.get('url') or '';\
+m=re.search(r'vid=([^&]+)',u);print('VID =',m.group(1) if m else 'TIDAK ADA (bukan tencent?)');print('URL =',u)"
+
+Contoh keluaran:
+      VID = a0x1bcde2fg3
+      URL = https://weibo.com/aj/video/redirect_tencent_video.json?vid=a0x1bcde2fg3
+
+Alternatif endpoint (mobile, kadang lebih mudah):
+      curl -s "https://m.weibo.cn/statuses/show?id=<MID>" \
+        -H "user-agent: Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)" \
+        -H "cookie: <COOKIE>"
+
+--- 5B. Download dari v.qq.com ---------------------------------------
+Setelah dapat <VID>:
+
+      ytdlp -f "bv*+ba/b" --merge-output-format mp4 \
+          -o "%(title)s.%(ext)s" \
+          "https://v.qq.com/x/page/<VID>.html"
+
+Kalau videonya berbayar/regional, tambahkan cookies tencent:
+      ytdlp --cookies cookies-qq.txt "https://v.qq.com/x/page/<VID>.html"
+
+--- 5C. Satu baris otomatis (ambil vid -> langsung unduh) ------------
+Simpan sebagai file, misal weibo_tencent.sh, lalu: bash weibo_tencent.sh <MID> <COOKIE>
+
+    #!/usr/bin/env bash
+    # Pemakaian: bash weibo_tencent.sh <MID> "<COOKIE>"
+    set -e
+    MID="$1"; COOKIE="$2"
+    VID=$(curl -s "https://weibo.com/ajax/statuses/show?id=${MID}" \
+        -H "user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0" \
+        -H "cookie: ${COOKIE}" \
+      | /usr/local/bin/python3.11 -c "import sys,json,re;d=json.load(sys.stdin);\
+mi=(d.get('page_info') or {}).get('media_info') or {};\
+u=mi.get('stream_url') or mi.get('h5_url') or mi.get('url') or '';\
+m=re.search(r'vid=([^&]+)',u);print(m.group(1) if m else '')")
+    if [ -z "$VID" ]; then echo "Tidak ketemu vid tencent. Cek manual ya."; exit 1; fi
+    echo "VID = $VID"
+    /usr/local/bin/python3.11 /usr/local/bin/yt-dlp \
+        -f "bv*+ba/b" --merge-output-format mp4 \
+        -o "%(title)s.%(ext)s" \
+        "https://v.qq.com/x/page/${VID}.html"
+
+Catatan: kalau stream_url TIDAK mengandung "vid=" dan bukan v.qq.com,
+berarti itu video Weibo biasa -> cukup pakai perintah Bab 4.
+
+------------------------------------------------------------------------
+6. CARA BIKIN cookies.txt (BIAR TIDAK KEBLOKIR / BISA KUALITAS TINGGI)
+------------------------------------------------------------------------
+Cara termudah: ekstensi browser "Get cookies.txt LOCALLY" (Chrome/
+Firefox). Buka situsnya saat sudah login, lalu Export -> simpan
+cookies.txt (format Netscape). Taruh di VPS, mis. /root/cookies-bili.txt.
+
+Alternatif lewat terminal (dari browser yang sama):
+  - Chrome/Chromium: ekstensi di atas, atau devtools -> Network ->
+    klik request -> Copy as cURL -> lihat header "cookie: ...".
+  - Format Netscape (teks) isinya kira-kira:
+        # Netscape HTTP Cookie File
+        .bilibili.com	TRUE	/	FALSE	0	SESSDATA	xxxxx
+        .bilibili.com	TRUE	/	FALSE	0	bili_jct	xxxxx
+        .weibo.com	TRUE	/	FALSE	0	SUB	xxxxx
+
+Kalau kamu cuma punya cookie bentuk header ("SESSDATA=xxx; bili_jct=yyy"),
+ubah dulu ke format Netscape. Contoh cepat pakai python3.11:
+
+    /usr/local/bin/python3.11 - <<'PY'
+    raw="SESSDATA=xxx; bili_jct=yyy"   # <- isi cookie kamu (header)
+    domain=".bilibili.com"              # ganti domain sesuai situs
+    out=["# Netscape HTTP Cookie File"]
+    for p in raw.split(";"):
+        p=p.strip()
+        if not p or "=" not in p: continue
+        k,v=p.split("=",1)
+        out.append(f"{domain}\tTRUE\t/\tFALSE\t0\t{k.strip()}\t{v.strip()}")
+    open("cookies.txt","w").write("\n".join(out)+"\n")
+    print("cookies.txt dibuat")
+    PY
+
+Cookie penting:
+  - Bilibili : SESSDATA  (dan bili_jct)
+  - Weibo    : SUB (dan SUBP)
+  - Tencent  : dari v.qq.com
+
+------------------------------------------------------------------------
+7. ERROR UMUM & SOLUSINYA
+------------------------------------------------------------------------
+1) "unsupported version of Python" saat manggil yt-dlp
+   -> jangan panggil /usr/local/bin/yt-dlp langsung; pakai
+      /usr/local/bin/python3.11 /usr/local/bin/yt-dlp ...
+
+2) Bilibili: HTTP Error 412: Precondition Failed
+   -> IP diblokir risk-control. Solusi (urut): pakai --cookies,
+      ganti jaringan/IP, atau proxy residensial. Perintahnya tetap benar.
+
+3) Weibo: halaman "Sina Visitor System" / JSON kosong
+   -> belum punya cookie guest/login. Solusi: --cookies cookies-weibo.txt,
+      atau jalankan dari IP lain.
+
+4) Weibo: "No video formats found!"
+   -> kemungkinan di-host Tencent -> ikuti Bab 5.
+
+5) Gabungan video+audio gagal / hasil cuma suara atau cuma gambar
+   -> pastikan ffmpeg ada (which ffmpeg) dan pakai
+      -f "bv*+ba/b" --merge-output-format mp4
+
+6) Unduhan lambat/putus
+   -> tambah: --retries 5 --fragment-retries 5
+   -> atau pakai aria2c kalau ada: --downloader aria2c
+
+7) Nama file aneh / terlalu panjang
+   -> pakai -o "%(id)s.%(ext)s" atau --restrict-filenames
+
+------------------------------------------------------------------------
+8. CONTOH LENGKAP SIAP TEMPEL
+------------------------------------------------------------------------
+# 0) alias
+alias ytdlp='/usr/local/bin/python3.11 /usr/local/bin/yt-dlp'
+
+# 1) Bilibili satu video, terbaik, mp4
+ytdlp -f "bv*+ba/b" --merge-output-format mp4 \
+    -o "%(title)s [%(id)s].%(ext)s" \
+    "https://www.bilibili.com/video/BV1F5pY6pEQ6"
+
+# 2) Bilibili channel ARMJI (UID 557818222), 10 terbaru
+ytdlp --playlist-end 10 -f "bv*+ba/b" --merge-output-format mp4 \
+    -o "ARMJI/%(playlist_index)s - %(title)s.%(ext)s" \
+    "https://space.bilibili.com/557818222/video"
+
+# 3) Weibo biasa
+ytdlp -o "%(title)s.%(ext)s" "https://m.weibo.cn/detail/<MID>"
+
+# 4) Weibo hosted Tencent: cari vid dulu, lalu unduh
+curl -s "https://weibo.com/ajax/statuses/show?id=<MID>" \
+  -H "cookie: <COOKIE>" -H "user-agent: Mozilla/5.0" \
+| /usr/local/bin/python3.11 -c "import sys,json,re;d=json.load(sys.stdin);\
+u=((d.get('page_info') or {}).get('media_info') or {}).get('stream_url','');\
+m=re.search(r'vid=([^&]+)',u);print('https://v.qq.com/x/page/%s.html'%m.group(1))"
+
+ytdlp -f "bv*+ba/b" --merge-output-format mp4 "<URL_v.qq.com_dari_atas>"
+
+# 5) update yt-dlp (kalau extractor rusak/berubah)
+/usr/local/bin/python3.11 -m pip install -U yt-dlp
+# atau:
+/usr/local/bin/python3.11 /usr/local/bin/yt-dlp -U
+
+------------------------------------------------------------------------
+9. REFERENSI EXTRACTOR (biar tahu URL apa yang didukung)
+------------------------------------------------------------------------
+Lihat semua: ytdlp --list-extractors
+Yang relevan ada di VPS ini:
+  BiliBili, BiliBiliBangumi, BilibiliSpaceVideo, BilibiliCollectionList,
+  BilibiliSeriesList, BilibiliFavoritesList, BiliBiliDynamic, BiliLive,
+  BiliIntl,
+  Weibo, WeiboUser, WeiboVideo,
+  vqq:video (VQQVideoIE -> https://v.qq.com/x/page/<id>.html),
+  vqq:series
+
+Deteksi VID script -> script_map:
+  Bilibili resolusi & audio ditentukan lewat API internal; yt-dlp sudah
+  handle. Kalau butuh manual, endpoint yang bekerja dari VPS ini:
+    https://api.bilibili.com/x/web-interface/wbi/view?bvid=...
+    https://api.bilibili.com/x/player/pagelist?bvid=...
+    https://api.bilibili.com/x/player/playurl?bvid=...&cid=...&fnval=16
+  (pakai curl_cffi / impersonate chrome kalau kena 412).
+
+========================================================================
+ SELESAI. Simpan file ini. Kalau VPS mati, semua perintah tetap bisa
+ dipakai di server/PC lain (pastikan ada python3.11 + yt-dlp + ffmpeg).
+========================================================================
