@@ -1,0 +1,218 @@
+# ============================================================
+# API / SUMBER YANG DIPAKAI OLEH https://enxapi.id/
+# Dihimpun dari bundle frontend enxapi (enx.js) + respons API live.
+# Host/provider diambil dari data nyata (cover_url, episode/sources).
+# ============================================================
+
+# ------------------------------------------------------------
+# [1] SUMBER DATA UPSTREAM (yang diambil/di-scrape enxapi)
+# ------------------------------------------------------------
+# ANIME (website)
+otakudesu.blog
+animekita.org
+assets.animekita.org
+oploverz.ac
+backapi.oploverz.ac
+astronime.id
+
+# DONGHUA (website)
+anichin.moe
+
+# MANGA / KOMIK (website)
+komiku.org
+thumbnail.komiku.org
+komiku.to
+thumbnail.komiku.to
+
+# METADATA / SKOR
+myanimelist.net
+cdn.myanimelist.net
+
+# Penyedia/mirror STREAM VIDEO (field "provider" & "quality" di /episode/:slug/sources)
+oploverz
+upbolt.to
+ylnime
+s3.animeverse.id
+pixeldrain.com
+desustream.net
+vidhide
+mega
+odcdn
+
+# Identitas sumber di frontend enxapi (bundle):
+#   source === "komiku"  -> manga
+#   source === "anichin" -> donghua
+#   selain itu           -> anime
+
+# ------------------------------------------------------------
+# [2] API INTERNAL ENXAPI (dipanggil frontend enxapi sendiri)
+# ------------------------------------------------------------
+# Base API  : https://enxapi.id/api/v1
+# Base Auth : https://enxapi.id/api/auth
+# WebSocket : wss://enxapi.id/api/ws
+#
+# Butuh header mirip browser (Origin/Referer https://enxapi.id,
+# user-agent Chrome, sec-ch-ua, sec-fetch-*). Tanpa itu -> 403 akses ditolak.
+
+## Home / Konten umum
+GET    /api/v1/home/featured
+GET    /api/v1/home/trending
+GET    /api/v1/search?q=
+GET    /api/v1/catalog
+GET    /api/v1/catalog/types
+GET    /api/v1/stats/site
+GET    /api/v1/site/socials
+POST   /api/v1/views
+
+## Jadwal & Genre
+GET    /api/v1/schedule
+GET    /api/v1/genres
+GET    /api/v1/genres/:slug
+GET    /api/v1/donghua/schedule
+GET    /api/v1/donghua/genres
+GET    /api/v1/manga/genres
+
+## Anime
+GET    /api/v1/anime
+GET    /api/v1/anime/ongoing?page=
+GET    /api/v1/anime/complete?page=
+GET    /api/v1/anime/:slug
+
+## Donghua
+GET    /api/v1/donghua?page=&genre=&status=&type=&order=
+GET    /api/v1/donghua/search
+GET    /api/v1/donghua/detail/:slug
+GET    /api/v1/donghua/watch/:slug
+GET    /api/v1/donghua/watch/:slug/sources
+
+## Manga / Komik
+GET    /api/v1/manga?page=&genre=&status=&type=&order=
+GET    /api/v1/manga/search
+GET    /api/v1/manga/detail/:slug
+GET    /api/v1/manga/read/:chapterId
+
+## Episode / Player
+GET    /api/v1/episode/:slug
+GET    /api/v1/episode/:slug/sources
+
+## Autentikasi
+GET    /api/auth/me
+GET    /api/auth/discord?next=
+POST   /api/auth/logout
+
+## Akun pengguna (/me/*)
+GET    /api/v1/me/dashboard
+GET    /api/v1/me/counts
+GET    /api/v1/me/badges
+GET    /api/v1/me/settings
+PATCH  /api/v1/me/settings
+GET    /api/v1/me/profile
+PATCH  /api/v1/me/profile
+POST   /api/v1/me/onboarding
+GET    /api/v1/me/library
+GET    /api/v1/me/library/stats
+GET    /api/v1/me/library/:kind/:id
+PUT    /api/v1/me/library/:kind/:id
+DELETE /api/v1/me/library/:kind/:id
+GET    /api/v1/me/history
+POST   /api/v1/me/history
+DELETE /api/v1/me/history
+DELETE /api/v1/me/history/:kind/:id
+GET    /api/v1/me/donations
+GET    /api/v1/me/export
+POST   /api/v1/me/delete
+DELETE /api/v1/me/delete
+
+## Rating
+GET    /api/v1/ratings/:kind/:id
+PUT    /api/v1/ratings/:kind/:id
+DELETE /api/v1/ratings/:kind/:id
+
+## Sesi
+POST   /api/v1/sessions/revoke-others
+DELETE /api/v1/sessions/:id
+
+## Komunitas / Sosial
+GET    /api/v1/posts
+POST   /api/v1/posts
+GET    /api/v1/posts/:id
+DELETE /api/v1/posts/:id
+POST   /api/v1/posts/:id/like
+DELETE /api/v1/posts/:id/like
+GET    /api/v1/posts/:id/comments
+POST   /api/v1/posts/:id/comments
+DELETE /api/v1/comments/:id
+POST   /api/v1/comments/:id/like
+DELETE /api/v1/comments/:id/like
+POST   /api/v1/follows/:userId
+DELETE /api/v1/follows/:userId
+POST   /api/v1/blocks/:userId
+DELETE /api/v1/blocks/:userId
+GET    /api/v1/users
+GET    /api/v1/users/suggestions
+GET    /api/v1/users/:username
+GET    /api/v1/users/:username/overview
+GET    /api/v1/users/:username/library
+GET    /api/v1/users/:username/reviews
+GET    /api/v1/users/:username/achievements
+GET    /api/v1/users/:username/activity
+GET    /api/v1/users/:username/follows
+GET    /api/v1/friends
+GET    /api/v1/community/search
+POST   /api/v1/reports
+GET    /api/v1/notifications
+POST   /api/v1/notifications/read
+
+## Chat / Room / Nobar
+GET    /api/v1/chats
+GET    /api/v1/chats/:id
+POST   /api/v1/chats/:id/accept
+GET    /api/v1/chats/:id/messages
+POST   /api/v1/chats/:id/messages
+POST   /api/v1/chats/:id/read
+POST   /api/v1/chats/dm/:userId
+GET    /api/v1/rooms
+POST   /api/v1/rooms
+GET    /api/v1/rooms/:id
+PATCH  /api/v1/rooms/:id
+DELETE /api/v1/rooms/:id
+POST   /api/v1/rooms/:id/invite
+GET    /api/v1/rooms/:id/pin
+POST   /api/v1/rooms/:id/unlock
+GET    /api/v1/leaderboard
+GET    /api/v1/leaderboard/hall-of-fame
+
+## Donasi
+GET    /api/v1/donations/info
+GET    /api/v1/donations/summary
+GET    /api/v1/donations/feed
+GET    /api/v1/donations/:id
+POST   /api/v1/donations
+POST   /api/v1/donations/:id/simulate
+
+## Lain-lain
+POST   /api/v1/stats/ping
+POST   /api/v1/uploads/url
+
+## Admin
+GET    /api/v1/admin/stats
+GET    /api/v1/admin/queue
+GET    /api/v1/admin/log
+GET    /api/v1/admin/users
+GET    /api/v1/admin/users/:id
+POST   /api/v1/admin/users/:id/ban
+POST   /api/v1/admin/users/:id/unban
+POST   /api/v1/admin/users/:id/timeout
+POST   /api/v1/admin/users/:id/verify
+POST   /api/v1/admin/users/:id/role
+POST   /api/v1/admin/users/:id/reset
+POST   /api/v1/admin/users/:id/logout
+POST   /api/v1/admin/users/:id/xp
+PUT    /api/v1/admin/users/:id/note
+GET    /api/v1/admin/site/sources
+PUT    /api/v1/admin/site/sources
+PUT    /api/v1/admin/site/socials
+POST   /api/v1/admin/donations/:id/hide
+POST   /api/v1/admin/reports/:id/resolve
+DELETE /api/v1/admin/:type/:id
+DELETE /api/v1/admin/comments/:id
