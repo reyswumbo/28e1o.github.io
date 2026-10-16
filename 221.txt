@@ -175,58 +175,103 @@ Jadi kita harus:
   (2) download dari v.qq.com/x/page/<VID>.html (didukung yt-dlp
       lewat extractor "vqq:video").
 
---- 5A. Ambil "vid" dari JSON status weibo (paling gampang) ----------
-Ganti <MID> dengan id status, dan <COOKIE> dengan cookie browser-mu
-(lihat Bab 6 cara ambilnya):
+--- 5A. Ambil "vid" dari JSON status weibo ---------------------------
+TRIK PENTING: endpoint mobile HARUS dikirimi header
+    X-Requested-With: XMLHttpRequest
+tanpa header itu, server balas halaman HTML "Sina Visitor System"
+(bukan JSON). Dengan header itu, TIDAK PERLU COOKIE sama sekali.
+(Cara ini sudah diuji di VPS ini dan berhasil.)
 
+Ganti <MID> dengan id status (angka di URL m.weibo.cn/detail/<MID>):
+
+      MID=5354343534430126
+      curl -s "https://m.weibo.cn/statuses/show?id=$MID" \
+        -H "user-agent: Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1" \
+        -H "X-Requested-With: XMLHttpRequest" \
+        -H "Accept: application/json, text/plain, */*" \
+        -H "Referer: https://m.weibo.cn/detail/$MID" \
+      | /usr/local/bin/python3.11 -c "
+import sys,json,re,urllib.parse
+d=json.load(sys.stdin).get('data',{})
+pi=d.get('page_info') or {}
+mi=pi.get('media_info') or {}
+u=mi.get('stream_url') or ''
+vid=re.search(r'vid=([^&]+)',u)
+raw=urllib.parse.unquote(json.dumps(d,ensure_ascii=False))
+qq=(re.search(r'https?://v\.qq\.com/x/(?:cover|page)/[0-9a-zA-Z]+/[0-9a-zA-Z]+\.html',raw)
+    or re.search(r'https?://v\.qq\.com/x/page/[0-9a-zA-Z]+\.html',raw))
+print('VID =', vid.group(1) if vid else '-')
+print('QQ  =', qq.group(0) if qq else '-')
+print('URL =', u)
+"
+
+Contoh keluaran (nyata dari VPS ini, MID 5354343534430126):
+      VID = h4102f0x9ro
+      QQ  = https://v.qq.com/x/cover/mzc00200w9z1axf/h4102f0x9ro.html
+      URL = https://multimedia.api.weibo.com/2/multimedia/redirect_tencent_video.json?vid=h4102f0x9ro
+
+PENTING: pakai URL "QQ" yang muncul itu (bentuk /x/cover/<series>/<vid>.html),
+JANGAN mengarang /x/page/<vid>.html. URL cover membawa parameter "series id"
+(cid) yang dibutuhkan API Tencent. Kalau "QQ = -", coba cari manual:
+      curl -s "https://m.weibo.cn/detail/$MID" ... (lihat field page_info.page_url)
+
+CATATAN: kalau "VID = TIDAK ADA", berarti itu video weibo biasa
+(bukan tencent) -> cukup pakai perintah Bab 4.
+
+Alternatif endpoint desktop (ini butuh cookie login):
       curl -s "https://weibo.com/ajax/statuses/show?id=<MID>" \
         -H "user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0" \
-        -H "cookie: <COOKIE>" \
-      | /usr/local/bin/python3.11 -c "import sys,json,re;\
-d=json.load(sys.stdin);\
-mi=(d.get('page_info') or {}).get('media_info') or {};\
-u=mi.get('stream_url') or mi.get('h5_url') or mi.get('url') or '';\
-m=re.search(r'vid=([^&]+)',u);print('VID =',m.group(1) if m else 'TIDAK ADA (bukan tencent?)');print('URL =',u)"
-
-Contoh keluaran:
-      VID = a0x1bcde2fg3
-      URL = https://weibo.com/aj/video/redirect_tencent_video.json?vid=a0x1bcde2fg3
-
-Alternatif endpoint (mobile, kadang lebih mudah):
-      curl -s "https://m.weibo.cn/statuses/show?id=<MID>" \
-        -H "user-agent: Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)" \
         -H "cookie: <COOKIE>"
 
 --- 5B. Download dari v.qq.com ---------------------------------------
-Setelah dapat <VID>:
+Setelah dapat URL "QQ" di atas:
 
       ytdlp -f "bv*+ba/b" --merge-output-format mp4 \
           -o "%(title)s.%(ext)s" \
-          "https://v.qq.com/x/page/<VID>.html"
+          "https://v.qq.com/x/cover/<SERIES>/<VID>.html"
 
 Kalau videonya berbayar/regional, tambahkan cookies tencent:
-      ytdlp --cookies cookies-qq.txt "https://v.qq.com/x/page/<VID>.html"
+      ytdlp --cookies cookies-qq.txt "https://v.qq.com/x/cover/<SERIES>/<VID>.html"
 
---- 5C. Satu baris otomatis (ambil vid -> langsung unduh) ------------
-Simpan sebagai file, misal weibo_tencent.sh, lalu: bash weibo_tencent.sh <MID> <COOKIE>
+PENTING (sudah diuji): kalau dari IP di LUAR CHINA (termasuk VPS Tencent
+Cloud Singapore ini), Tencent sering balas:
+    code "69.2"  msg "这个视频被外星人劫走，暂时看不了了~"
+(makna: konten tidak tersedia di region ini)  ATAU
+    KeyError('fvkey')  (stream terkunci DRM / butuh login)
+Artinya BUKAN salah perintah, tapi GEO-BLOCK / DRM. Solusinya:
+    - jalankan dari IP China (VPN/proxy China), ATAU
+    - pakai cookies v.qq.com dari akun yang berhak.
+Kalau kamu berada di China / pakai VPN China, perintah di atas langsung jalan.
+
+--- 5C. Script otomatis: ambil URL tencent -> langsung unduh ---------
+Tidak butuh cookie (pakai trik X-Requested-With). Pemakaian:
+      bash weibo_tencent.sh 5354343534430126
+
+Simpan sebagai weibo_tencent.sh:
 
     #!/usr/bin/env bash
-    # Pemakaian: bash weibo_tencent.sh <MID> "<COOKIE>"
+    # Pemakaian: bash weibo_tencent.sh <MID>
     set -e
-    MID="$1"; COOKIE="$2"
-    VID=$(curl -s "https://weibo.com/ajax/statuses/show?id=${MID}" \
-        -H "user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0" \
-        -H "cookie: ${COOKIE}" \
-      | /usr/local/bin/python3.11 -c "import sys,json,re;d=json.load(sys.stdin);\
-mi=(d.get('page_info') or {}).get('media_info') or {};\
-u=mi.get('stream_url') or mi.get('h5_url') or mi.get('url') or '';\
-m=re.search(r'vid=([^&]+)',u);print(m.group(1) if m else '')")
-    if [ -z "$VID" ]; then echo "Tidak ketemu vid tencent. Cek manual ya."; exit 1; fi
-    echo "VID = $VID"
-    /usr/local/bin/python3.11 /usr/local/bin/yt-dlp \
-        -f "bv*+ba/b" --merge-output-format mp4 \
-        -o "%(title)s.%(ext)s" \
-        "https://v.qq.com/x/page/${VID}.html"
+    MID="$1"
+    [ -z "$MID" ] && { echo "Pakai: bash weibo_tencent.sh <MID>"; exit 1; }
+    YTDLP='/usr/local/bin/python3.11 /usr/local/bin/yt-dlp'
+    QQ=$(curl -s "https://m.weibo.cn/statuses/show?id=${MID}" \
+        -H "user-agent: Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1" \
+        -H "X-Requested-With: XMLHttpRequest" \
+        -H "Accept: application/json, text/plain, */*" \
+        -H "Referer: https://m.weibo.cn/detail/${MID}" \
+      | /usr/local/bin/python3.11 -c "
+import sys,json,re,urllib.parse
+try: d=json.load(sys.stdin).get('data',{})
+except Exception: sys.exit(0)
+raw=urllib.parse.unquote(json.dumps(d,ensure_ascii=False))
+m=(re.search(r'https?://v\.qq\.com/x/(?:cover|page)/[0-9a-zA-Z]+/[0-9a-zA-Z]+\.html',raw)
+   or re.search(r'https?://v\.qq\.com/x/page/[0-9a-zA-Z]+\.html',raw))
+print(m.group(0) if m else '')
+")
+    if [ -z "$QQ" ]; then echo "Tidak ketemu URL Tencent (mungkin video weibo biasa)."; exit 1; fi
+    echo "URL = $QQ"
+    $YTDLP -f "bv*+ba/b" --merge-output-format mp4 -o "%(title)s.%(ext)s" "$QQ"
 
 Catatan: kalau stream_url TIDAK mengandung "vid=" dan bukan v.qq.com,
 berarti itu video Weibo biasa -> cukup pakai perintah Bab 4.
@@ -280,11 +325,18 @@ Cookie penting:
       ganti jaringan/IP, atau proxy residensial. Perintahnya tetap benar.
 
 3) Weibo: halaman "Sina Visitor System" / JSON kosong
-   -> belum punya cookie guest/login. Solusi: --cookies cookies-weibo.txt,
-      atau jalankan dari IP lain.
+   -> Anda lupa header X-Requested-With: XMLHttpRequest (lihat Bab 5A).
+      Kalau tetap gagal, pakai --cookies cookies-weibo.txt, atau IP lain.
 
 4) Weibo: "No video formats found!"
    -> kemungkinan di-host Tencent -> ikuti Bab 5.
+
+4b) Tencent/v.qq.com: code "69.2" "这个视频被外星人劫走，暂时看不了了~"
+    atau KeyError('fvkey')
+   -> GEO-BLOCK / DRM: VPS ini di luar China (Tencent Cloud Singapore),
+      jadi Tencent menolak. Ini BUKAN salah perintah. Solusi: jalankan
+      dari IP China (VPN/proxy), atau pakai cookies v.qq.com akun
+      yang berhak. Kualitas tertinggi biasanya juga butuh login/VIP.
 
 5) Gabungan video+audio gagal / hasil cuma suara atau cuma gambar
    -> pastikan ffmpeg ada (which ffmpeg) dan pakai
@@ -316,14 +368,23 @@ ytdlp --playlist-end 10 -f "bv*+ba/b" --merge-output-format mp4 \
 # 3) Weibo biasa
 ytdlp -o "%(title)s.%(ext)s" "https://m.weibo.cn/detail/<MID>"
 
-# 4) Weibo hosted Tencent: cari vid dulu, lalu unduh
-curl -s "https://weibo.com/ajax/statuses/show?id=<MID>" \
-  -H "cookie: <COOKIE>" -H "user-agent: Mozilla/5.0" \
-| /usr/local/bin/python3.11 -c "import sys,json,re;d=json.load(sys.stdin);\
-u=((d.get('page_info') or {}).get('media_info') or {}).get('stream_url','');\
-m=re.search(r'vid=([^&]+)',u);print('https://v.qq.com/x/page/%s.html'%m.group(1))"
-
-ytdlp -f "bv*+ba/b" --merge-output-format mp4 "<URL_v.qq.com_dari_atas>"
+# 4) Weibo hosted Tencent: ambil URL tencent dulu, lalu unduh (tanpa cookie)
+bash weibo_tencent.sh <MID>
+# atau manual:
+MID=5354343534430126
+curl -s "https://m.weibo.cn/statuses/show?id=$MID" \
+  -H "user-agent: Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)" \
+  -H "X-Requested-With: XMLHttpRequest" -H "Accept: application/json" \
+| /usr/local/bin/python3.11 -c "
+import sys,json,re,urllib.parse
+d=json.load(sys.stdin).get('data',{})
+raw=urllib.parse.unquote(json.dumps(d,ensure_ascii=False))
+m=(re.search(r'https?://v\.qq\.com/x/(?:cover|page)/[0-9a-zA-Z]+/[0-9a-zA-Z]+\.html',raw)
+   or re.search(r'https?://v\.qq\.com/x/page/[0-9a-zA-Z]+\.html',raw))
+print(m.group(0) if m else '-')"
+# -> keluaran: https://v.qq.com/x/cover/mzc00200w9z1axf/h4102f0x9ro.html
+# lalu (dari IP China / pakai cookies):
+ytdlp -f "bv*+ba/b" --merge-output-format mp4 "https://v.qq.com/x/cover/mzc00200w9z1axf/h4102f0x9ro.html"
 
 # 5) update yt-dlp (kalau extractor rusak/berubah)
 /usr/local/bin/python3.11 -m pip install -U yt-dlp
@@ -339,8 +400,9 @@ Yang relevan ada di VPS ini:
   BilibiliSeriesList, BilibiliFavoritesList, BiliBiliDynamic, BiliLive,
   BiliIntl,
   Weibo, WeiboUser, WeiboVideo,
-  vqq:video (VQQVideoIE -> https://v.qq.com/x/page/<id>.html),
-  vqq:series
+  vqq:video (VQQVideoIE -> https://v.qq.com/x/page/<id>.html
+              atau https://v.qq.com/x/cover/<series>/<id>.html),
+  vqq:series (https://v.qq.com/x/cover/<series>.html)
 
 Deteksi VID script -> script_map:
   Bilibili resolusi & audio ditentukan lewat API internal; yt-dlp sudah
